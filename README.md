@@ -23,6 +23,7 @@ diagnosis through the use of artificial intelligence.
 * NumPy
 * Pandas
 * MatPlotLib
+* Sklearn
 
 ### Installing
 
@@ -31,7 +32,7 @@ diagnosis through the use of artificial intelligence.
 ### Executing program
 
 How to run the program:
-* 1. Step-by-sstep
+* 1. Step-by-step
 ```
 
 ```

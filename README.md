@@ -31,6 +31,12 @@ diagnosis through the use of artificial intelligence.
 
 * Kaggle: [Brain Tumor MRI Dataset](https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset)
 
+#### Data
+
+To properly setup data paths for data collection and organization:
+1. Download the [Brain Tumor MRI Dataset](https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset) from Kaggle
+2. Extract the folder and place the `\Testing` and `\Training` folders into the `\data` folder
+
 ### Executing program
 
 How to run the program:

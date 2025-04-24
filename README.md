@@ -18,29 +18,35 @@ diagnosis through the use of artificial intelligence.
 
 ### Dependencies
 
-* Python 3.13+
-* TensorFlow
-* NumPy
-* Pandas
-* MatPlotLib
+* Windows OS
+* [Python 3.12](https://www.python.org/downloads/)
+* [Pandas](https://pypi.org/project/pandas/)
+* [MatPlotLib](https://pypi.org/project/matplotlib/)
+* [Seaborn](https://pypi.org/project/seaborn/)
+* [CV2](https://pypi.org/project/opencv-python/)
+* [ImUtils](https://pypi.org/project/imutils/)
+* [NumPy](https://pypi.org/project/numpy/)
 
 ### Installing
 
-* Kaggle: [Brain Tumor MRI Dataset](https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset/code)
+* Kaggle: [Brain Tumor MRI Dataset](https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset)
 
 ### Executing program
 
 How to run the program:
-* 1. Step-by-sstep
-```
+* 1. Download project folder (`AI-BETTS-GROUP-7`)
+* 2. Type the following into a terminal
 
+```python
+cd AI-BETTS-GROUP-7\
+python AI-Betts.py
 ```
 
 ## Authors
 
 Contributors names and contact info
 
-* Kaitlyn Grace:
-* Carlos Narro:
 * Debanish Velez: [@Alex-Velez](https://github.com/Alex-Velez)
 * Jordan Yang: [@Jyang042](https://github.com/Jyang042)
+* Carlos Narro:
+* Kaitlyn Grace:

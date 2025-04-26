@@ -34,7 +34,7 @@ def display_runtime(start_time: float):
 
 def generate_dataframe(folder_path: str) -> pd.DataFrame:
     print(f"[{PROGRAM_NAME}]: Generating new dataframe from '{folder_path}' with one-hot encoding")
-    dataframe = pd.DataFrame([], columns = ["Image", "Location",  "Glioma", "Meningioma", "Pituitary", "NoTumor"])
+    dataframe = pd.DataFrame([], columns = ["Image", "Glioma", "Meningioma", "Pituitary", "NoTumor"])
     classes = os.listdir(folder_path)
     image_paths = [[image_path for image_path in os.listdir(os.path.join(folder_path, class_path))] for class_path in classes]
     
@@ -46,16 +46,11 @@ def generate_dataframe(folder_path: str) -> pd.DataFrame:
                 case "meningioma": classification = [False, True, False, False]
                 case "pituitary": classification = [False, False, True, False]
                 case "notumor": classification = [False, False, False, True]
-            
-            # temporarily random until data can be classified
-            xpos = round(random.uniform(0, 100), 2)
-            ypos = round(random.uniform(0, 100), 2)
 
             # new data
             new_row = pd.DataFrame(
                 {
                     "Image": [img_path],
-                    "Location": [(xpos, ypos)],
                     "Glioma": [classification[0]],
                     "Meningioma": [classification[1]],
                     "Pituitary": [classification[2]],
@@ -240,7 +235,8 @@ if __name__ == "__main__":
     raw_testing_folderpath = os.path.join(data_folder, "Testing")
     training_data_filepath = os.path.join(data_folder, "training.csv")
     testing_data_filepath = os.path.join(data_folder, "testing.csv")
-
+    model_save_path = "bettai_cnn_model.pth"
+    
     # load training and testing data
     training_dataframe = load_dataframe(training_data_filepath, raw_training_folderpath)
     testing_dataframe = load_dataframe(testing_data_filepath, raw_testing_folderpath)
@@ -257,9 +253,6 @@ if __name__ == "__main__":
     # save training and testing data
     save_dataframe(training_dataframe, training_data_filepath)
     save_dataframe(testing_dataframe, testing_data_filepath)
-
-    # program runtime
-    display_runtime(start_time)
     
     # Prepare datasets and dataloaders
     train_dataset = BrainTumorDataset(training_dataframe, raw_training_folderpath)
@@ -274,35 +267,33 @@ if __name__ == "__main__":
     # Loss and optimizer
     criterion = nn.BCELoss()  # Because of multilabel with sigmoid
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-    # Training loop
-    EPOCHS = 10
-    print(f"[{PROGRAM_NAME}]: Starting CNN training")
-    for epoch in range(EPOCHS):
-        running_loss = 0.0
-        model.train()
-        for inputs, labels in train_loader:
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {running_loss/len(train_loader):.4f}")
+    
+    # Check if model already exists
+    if os.path.exists(model_save_path):
+        # Load the trained model
+        model.load_state_dict(torch.load(model_save_path))
+        model.eval()  # Set to evaluation mode
+        print(f"[{PROGRAM_NAME}]: Loaded pretrained model from '{model_save_path}'")
+    else:
+        # Training loop
+        EPOCHS = 10
+        print(f"[{PROGRAM_NAME}]: Starting CNN training")
         
+        for epoch in range(EPOCHS):
+            running_loss = 0.0
+            model.train()
+            for inputs, labels in train_loader:
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+            print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {running_loss/len(train_loader):.4f}")
+            
     # Save the trained model
-    model_save_path = "bettai_cnn_model.pth"
     torch.save(model.state_dict(), model_save_path)
     print(f"[{PROGRAM_NAME}]: Model saved to '{model_save_path}'")
-    
-    # Create the same model structure
-    #model = BETTSAI_CNN()
-    # Load the saved weights
-    #model.load_state_dict(torch.load("bettai_cnn_model.pth"))
-    # Set model to evaluation mode
-    #model.eval()
-    #print(f"[{PROGRAM_NAME}]: Model loaded successfully!")
-
 
     # Predict and visualize some test images
     SAMPLE_IMAGES = 5
@@ -321,3 +312,6 @@ if __name__ == "__main__":
         print(f"Image: {row['Image']}")
         print(f"Predicted: {decoded}")
         print("-" * 30)
+        
+    # program runtime
+    display_runtime(start_time)

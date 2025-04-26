@@ -13,6 +13,13 @@ import cv2
 import imutils
 import numpy as np
 
+#pytorch imports
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+
+
 # Constants
 PROGRAM_NAME = "BETTSAI"
 DEBUG_SKIP = False
@@ -133,6 +140,88 @@ def preprocess_image(image_path: str, image_size: tuple[int, int]): # (128, 128)
 
     return normalized
 
+class BrainTumorDataset(Dataset):
+    def __init__(self, dataframe, image_folder, image_size=(128, 128)):
+        self.dataframe = dataframe
+        self.image_folder = image_folder
+        self.image_size = image_size
+
+    def __len__(self):
+        return len(self.dataframe)
+
+    def __getitem__(self, idx):
+        row = self.dataframe.iloc[idx]
+        image_path = os.path.join(self.image_folder, row['Image'])
+        image = preprocess_image(image_path, self.image_size)
+
+        if image is None:
+            # Return a blank image if preprocessing fails
+            image = np.zeros((self.image_size[0], self.image_size[1], 3), dtype=np.float32)
+
+        image = np.transpose(image, (2, 0, 1))  # HWC to CHW for PyTorch
+        image_tensor = torch.tensor(image, dtype=torch.float32)
+
+        label = torch.tensor([
+            row["Glioma"],
+            row["Meningioma"],
+            row["Pituitary"],
+            row["NoTumor"]
+        ], dtype=torch.float32)
+
+        return image_tensor, label
+
+class BrainTumorCNN(nn.Module):
+    def __init__(self):
+        super(BrainTumorCNN, self).__init__()
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(3, 16, 3, padding=1),  # (in_channels, out_channels, kernel_size)
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),  # Downsample by 2x
+
+            nn.Conv2d(16, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2)
+        )
+        self.fc_layers = nn.Sequential(
+            nn.Linear(64 * 16 * 16, 128),  # (input_features, output_features)
+            nn.ReLU(),
+            nn.Linear(128, 4),  # 4 outputs for 4 tumor types
+            nn.Sigmoid()  # For multilabel classification
+        )
+
+    def forward(self, x):
+        x = self.conv_layers(x)
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.fc_layers(x)
+        return x
+
+def predict_single_image(model, image_path, image_size=(128, 128)):
+    model.eval()  # Set model to evaluation mode
+    image = preprocess_image(image_path, image_size)
+
+    if image is None:
+        print(f"Skipping prediction: Image '{image_path}' is invalid.")
+        return None
+
+    image = np.transpose(image, (2, 0, 1))  # HWC -> CHW
+    image_tensor = torch.tensor(image, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
+
+    with torch.no_grad():
+        output = model(image_tensor)
+        prediction = output.squeeze().numpy()
+
+    return prediction
+
+def decode_prediction(prediction, threshold=0.5):
+    classes = ["Glioma", "Meningioma", "Pituitary", "NoTumor"]
+    predicted_classes = [classes[i] for i, pred in enumerate(prediction) if pred >= threshold]
+    return predicted_classes if predicted_classes else ["Uncertain"]
+
+
 if __name__ == "__main__":
     # time program
     start_time = time.perf_counter()
@@ -171,3 +260,64 @@ if __name__ == "__main__":
 
     # program runtime
     display_runtime(start_time)
+    
+    # Prepare datasets and dataloaders
+    train_dataset = BrainTumorDataset(training_dataframe, raw_training_folderpath)
+    test_dataset = BrainTumorDataset(testing_dataframe, raw_testing_folderpath)
+
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+    # Initialize CNN
+    model = BrainTumorCNN()
+
+    # Loss and optimizer
+    criterion = nn.BCELoss()  # Because of multilabel with sigmoid
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    # Training loop
+    EPOCHS = 10
+    print(f"[{PROGRAM_NAME}]: Starting CNN training")
+    for epoch in range(EPOCHS):
+        running_loss = 0.0
+        model.train()
+        for inputs, labels in train_loader:
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+        print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {running_loss/len(train_loader):.4f}")
+        
+    # Save the trained model
+    model_save_path = "bettai_cnn_model.pth"
+    torch.save(model.state_dict(), model_save_path)
+    print(f"[{PROGRAM_NAME}]: Model saved to '{model_save_path}'")
+    
+    # Create the same model structure
+    #model = BETTSAI_CNN()
+    # Load the saved weights
+    #model.load_state_dict(torch.load("bettai_cnn_model.pth"))
+    # Set model to evaluation mode
+    #model.eval()
+    #print(f"[{PROGRAM_NAME}]: Model loaded successfully!")
+
+
+    # Predict and visualize some test images
+    SAMPLE_IMAGES = 5
+    print(f"[{PROGRAM_NAME}]: Running predictions on {SAMPLE_IMAGES} test images...\n")
+
+    for i in range(SAMPLE_IMAGES):
+        row = testing_dataframe.sample().iloc[0]
+        img_path = os.path.join(raw_testing_folderpath, row['Image'])
+
+        prediction = predict_single_image(model, img_path)
+        if prediction is None:
+            continue
+
+        decoded = decode_prediction(prediction)
+
+        print(f"Image: {row['Image']}")
+        print(f"Predicted: {decoded}")
+        print("-" * 30)

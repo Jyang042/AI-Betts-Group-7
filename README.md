@@ -26,6 +26,7 @@ diagnosis through the use of artificial intelligence.
 * [CV2](https://pypi.org/project/opencv-python/)
 * [ImUtils](https://pypi.org/project/imutils/)
 * [NumPy](https://pypi.org/project/numpy/)
+* [PyTorch](https://pytorch.org/)
 
 ### Installing
 

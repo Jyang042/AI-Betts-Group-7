@@ -216,6 +216,53 @@ def decode_prediction(prediction, threshold=0.5):
     predicted_classes = [classes[i] for i, pred in enumerate(prediction) if pred >= threshold]
     return predicted_classes if predicted_classes else ["Uncertain"]
 
+# Function to predict and display a grid of randomly selected test images
+def predict_and_display_images(model, dataframe, image_folder, sample_size=5, image_size=(128, 128), threshold=0.5):
+    model.eval()
+    
+    # Sample image rows without replacement
+    sampled_rows = dataframe.sample(n=sample_size, replace=False)
+    
+    image_paths = [
+        os.path.join(image_folder, row['Image']) for _, row in sampled_rows.iterrows()
+    ]
+
+    num_images = len(image_paths)
+    cols = min(num_images, 4)
+    rows = (num_images + cols - 1) // cols
+
+    plt.figure(figsize=(4 * cols, 4 * rows))
+
+    for i, (index, row) in enumerate(sampled_rows.iterrows()):
+        image_path = os.path.join(image_folder, row['Image'])
+        prediction = predict_single_image(model, image_path, image_size)
+        if prediction is None:
+            continue
+        predicted_classes = decode_prediction(prediction, threshold)
+
+        # Load original image for display
+        image = cv2.imread(image_path)
+        if image is None:
+            continue
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        plt.subplot(rows, cols, i + 1)
+        plt.imshow(image_rgb)
+        plt.axis("off")
+        
+        # Get true label from the dataframe row
+        true_label = CATEGORIES[np.argmax([
+            row["Glioma"], row["Meningioma"], row["Pituitary"], row["NoTumor"]
+        ])]
+        
+        #display truth label to match with prediction value
+        plt.title(
+            f"{os.path.basename(image_path)}\nPredicted: {', '.join(predicted_classes)}\nTrue: {true_label}",
+            fontsize=10
+        )
+
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     # time program
@@ -295,23 +342,9 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), model_save_path)
     print(f"[{PROGRAM_NAME}]: Model saved to '{model_save_path}'")
 
-    # Predict and visualize some test images
     SAMPLE_IMAGES = 5
-    print(f"[{PROGRAM_NAME}]: Running predictions on {SAMPLE_IMAGES} test images...\n")
-
-    for i in range(SAMPLE_IMAGES):
-        row = testing_dataframe.sample().iloc[0]
-        img_path = os.path.join(raw_testing_folderpath, row['Image'])
-
-        prediction = predict_single_image(model, img_path)
-        if prediction is None:
-            continue
-
-        decoded = decode_prediction(prediction)
-
-        print(f"Image: {row['Image']}")
-        print(f"Predicted: {decoded}")
-        print("-" * 30)
+    print(f"[{PROGRAM_NAME}]: Displaying predictions for {SAMPLE_IMAGES} random test images...\n")
+    predict_and_display_images(model, testing_dataframe, raw_testing_folderpath, sample_size=SAMPLE_IMAGES) 
         
     # program runtime
     display_runtime(start_time)

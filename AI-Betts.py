@@ -17,7 +17,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 
 
 # Constants
@@ -156,12 +156,18 @@ class BrainTumorDataset(Dataset):
         image = np.transpose(image, (2, 0, 1))  # HWC to CHW for PyTorch
         image_tensor = torch.tensor(image, dtype=torch.float32)
 
-        label = torch.tensor([
-            row["Glioma"],
-            row["Meningioma"],
-            row["Pituitary"],
-            row["NoTumor"]
-        ], dtype=torch.float32)
+        if row["Glioma"] == 1:
+            label = 0
+        elif row["Meningioma"] == 1:
+            label = 1
+        elif row["Pituitary"] == 1:
+            label = 2
+        elif row["NoTumor"] == 1:
+            label = 3
+        else:
+            raise ValueError("Invalid label in row")
+
+        label = torch.tensor(label, dtype=torch.long)
 
         return image_tensor, label
 
@@ -185,7 +191,6 @@ class BrainTumorCNN(nn.Module):
             nn.Linear(64 * 16 * 16, 128),  # (input_features, output_features)
             nn.ReLU(),
             nn.Linear(128, 4),  # 4 outputs for 4 tumor types
-            nn.Sigmoid()  # For multilabel classification
         )
 
     def forward(self, x):
@@ -207,9 +212,11 @@ def predict_single_image(model, image_path, image_size=(128, 128)):
 
     with torch.no_grad():
         output = model(image_tensor)
-        prediction = output.squeeze().numpy()
-
-    return prediction
+        
+        # Get the class index with the highest score (logit)
+        _, predicted_class_idx = torch.max(output, 1)
+        
+    return predicted_class_idx.item()  # Return the index of the predicted class
 
 def decode_prediction(prediction, threshold=0.5):
     classes = ["Glioma", "Meningioma", "Pituitary", "NoTumor"]
@@ -238,8 +245,9 @@ def predict_and_display_images(model, dataframe, image_folder, sample_size=5, im
         prediction = predict_single_image(model, image_path, image_size)
         if prediction is None:
             continue
-        predicted_classes = decode_prediction(prediction, threshold)
-
+        
+        predicted_class = CATEGORIES[prediction]
+        
         # Load original image for display
         image = cv2.imread(image_path)
         if image is None:
@@ -257,7 +265,7 @@ def predict_and_display_images(model, dataframe, image_folder, sample_size=5, im
         
         #display truth label to match with prediction value
         plt.title(
-            f"{os.path.basename(image_path)}\nPredicted: {', '.join(predicted_classes)}\nTrue: {true_label}",
+            f"{os.path.basename(image_path)}\nPredicted: {predicted_class}\nTrue: {true_label}",
             fontsize=10
         )
 
@@ -301,50 +309,137 @@ if __name__ == "__main__":
     save_dataframe(training_dataframe, training_data_filepath)
     save_dataframe(testing_dataframe, testing_data_filepath)
     
-    # Prepare datasets and dataloaders
+    # Prepare datasets
     train_dataset = BrainTumorDataset(training_dataframe, raw_training_folderpath)
     test_dataset = BrainTumorDataset(testing_dataframe, raw_testing_folderpath)
 
+    # Split the original training dataset into training and validation (e.g., 80% train, 20% val)
+    train_size = int(0.8 * len(train_dataset))
+    val_size = len(train_dataset) - train_size
+    train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+
+    # Create dataloaders
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
     # Initialize CNN
     model = BrainTumorCNN()
 
     # Loss and optimizer
-    criterion = nn.BCELoss()  # Because of multilabel with sigmoid
+    criterion = nn.CrossEntropyLoss()  
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
     # Check if model already exists
     if os.path.exists(model_save_path):
         # Load the trained model
-        model.load_state_dict(torch.load(model_save_path))
-        model.eval()  # Set to evaluation mode
-        print(f"[{PROGRAM_NAME}]: Loaded pretrained model from '{model_save_path}'")
+        checkpoint = torch.load(model_save_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.eval()
+        train_losses = checkpoint['train_losses']
+        val_losses = checkpoint['val_losses']
+        train_accuracies = checkpoint['train_accuracies']
+        val_accuracies = checkpoint['val_accuracies']
+        print(f"[{PROGRAM_NAME}]: Loaded model and training stats from '{model_save_path}'")
     else:
         # Training loop
+        train_losses = []
+        val_losses = []
+        train_accuracies = []
+        val_accuracies = []
         EPOCHS = 10
         print(f"[{PROGRAM_NAME}]: Starting CNN training")
         
         for epoch in range(EPOCHS):
-            running_loss = 0.0
+            # --- Training ---
             model.train()
+            running_loss = 0.0
+            correct = 0
+            total = 0
+
             for inputs, labels in train_loader:
                 optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
+
                 running_loss += loss.item()
-            print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {running_loss/len(train_loader):.4f}")
-            
+                _, predicted = torch.max(outputs, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+            train_loss = running_loss / len(train_loader)
+            train_acc = 100 * correct / total
+            train_losses.append(train_loss)
+            train_accuracies.append(train_acc)
+
+            # --- Validation ---
+            model.eval()
+            val_running_loss = 0.0
+            val_correct = 0
+            val_total = 0
+
+            with torch.no_grad():
+                for val_inputs, val_labels in val_loader:
+                    val_outputs = model(val_inputs)
+                    val_loss = criterion(val_outputs, val_labels)
+                    val_running_loss += val_loss.item()
+
+                    _, val_predicted = torch.max(val_outputs, 1)
+                    val_total += val_labels.size(0)
+                    val_correct += (val_predicted == val_labels).sum().item()
+
+            val_loss_epoch = val_running_loss / len(val_loader)
+            val_acc_epoch = 100 * val_correct / val_total
+            val_losses.append(val_loss_epoch)
+            val_accuracies.append(val_acc_epoch)
+
+            # Print results for this epoch
+            print(f"Epoch [{epoch+1}/{EPOCHS}], "
+                f"Loss: {train_loss:.4f}, Accuracy: {train_acc:.2f}%, "
+                f"Val Loss: {val_loss_epoch:.4f}, Val Accuracy: {val_acc_epoch:.2f}%")
+     
+                 
     # Save the trained model
-    torch.save(model.state_dict(), model_save_path)
-    print(f"[{PROGRAM_NAME}]: Model saved to '{model_save_path}'")
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'train_losses': train_losses,
+        'val_losses': val_losses,
+        'train_accuracies': train_accuracies,
+        'val_accuracies': val_accuracies
+    }, model_save_path)
 
     SAMPLE_IMAGES = 5
     print(f"[{PROGRAM_NAME}]: Displaying predictions for {SAMPLE_IMAGES} random test images...\n")
     predict_and_display_images(model, testing_dataframe, raw_testing_folderpath, sample_size=SAMPLE_IMAGES) 
+        
+    #plot loss and accuracy
+    plt.figure(figsize=(12, 5))
+
+    # Plot Loss
+    plt.subplot(1, 2, 1)
+    plt.plot(train_losses, label='Training Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.title('Loss over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+
+    # Plot Accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(train_accuracies, label='Training Accuracy')
+    plt.plot(val_accuracies, label='Validation Accuracy')
+    plt.title('Accuracy over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+    plt.grid(True)
+
+    # Show the plot
+    plt.tight_layout()
+    plt.show()
         
     # program runtime
     display_runtime(start_time)

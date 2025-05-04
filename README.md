@@ -26,10 +26,14 @@ diagnosis through the use of artificial intelligence.
 * [CV2](https://pypi.org/project/opencv-python/)
 * [ImUtils](https://pypi.org/project/imutils/)
 * [NumPy](https://pypi.org/project/numpy/)
+<<<<<<< HEAD
 * [PyTorch](https://pypi.org/project/torch/)
   * [TorchVision](https://pypi.org/project/torchvision/)
   * [TorchAudio](https://pypi.org/project/torchaudio/)
 * [Pillow](https://pypi.org/project/pillow/)
+=======
+* [PyTorch](https://pytorch.org/)
+>>>>>>> 9eab2a5087fcfe0a1822e517af61b844d4437933
 
 ### Installing
 

@@ -3,17 +3,21 @@
         "argmin",
         "Betts",
         "BETTSAI",
+        "cmap",
         "figsize",
         "folderpath",
         "fontsize",
         "imread",
+        "imshow",
         "Jyang",
         "Kaggle",
         "kagglehub",
         "Kaitlyn",
         "Meningioma",
         "Narro",
+        "narrolos",
         "notumor",
-        "Seaborn"
+        "Seaborn",
+        "ylabel"
     ]
 }

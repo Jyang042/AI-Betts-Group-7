@@ -19,13 +19,17 @@ diagnosis through the use of artificial intelligence.
 ### Dependencies
 
 * Windows OS
-* [Python 3.12](https://www.python.org/downloads/)
+* [Python 3.12.*](https://www.python.org/downloads/)
 * [Pandas](https://pypi.org/project/pandas/)
 * [MatPlotLib](https://pypi.org/project/matplotlib/)
 * [Seaborn](https://pypi.org/project/seaborn/)
 * [CV2](https://pypi.org/project/opencv-python/)
 * [ImUtils](https://pypi.org/project/imutils/)
 * [NumPy](https://pypi.org/project/numpy/)
+* [PyTorch](https://pypi.org/project/torch/)
+  * [TorchVision](https://pypi.org/project/torchvision/)
+  * [TorchAudio](https://pypi.org/project/torchaudio/)
+* [Pillow](https://pypi.org/project/pillow/)
 
 ### Installing
 
@@ -40,8 +44,8 @@ To properly setup data paths for data collection and organization:
 ### Executing program
 
 How to run the program:
-* 1. Download project folder (`AI-BETTS-GROUP-7`)
-* 2. Type the following into a terminal
+1. Download the source code folder (`AI-BETTS-GROUP-7`)
+2. Type the following into a terminal
 
 ```python
 cd AI-BETTS-GROUP-7\
@@ -50,9 +54,9 @@ python AI-Betts.py
 
 ## Authors
 
-Contributors names and contact info
+Contributors names and contact info:
 
 * Debanish Velez: [@Alex-Velez](https://github.com/Alex-Velez)
 * Jordan Yang: [@Jyang042](https://github.com/Jyang042)
-* Carlos Narro:
-* Kaitlyn Grace:
+* Kaitlyn Grace: [@ArtemisJade](https://github.com/ArtemisJade)
+* Carlos Narro: [@narrolos](https://github.com/narrolos)

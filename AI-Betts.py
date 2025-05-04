@@ -15,10 +15,6 @@ import imutils
 import numpy as np
 from PIL import Image
 import torch
-# import torchvision
-
-#pytorch imports
-import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
